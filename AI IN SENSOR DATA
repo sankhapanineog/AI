@@ -1,0 +1,269 @@
+
+
+import tkinter as tk
+from tkinter import messagebox
+from tkinter import ttk
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from PIL import Image, ImageTk
+import tkinter.filedialog as filedialog
+
+class IsolationTree:
+    def __init__(self, data, max_depth):
+        self.data = data
+        self.max_depth = max_depth
+        self.split_attribute = None
+        self.split_value = None
+        self.left_subtree = None
+        self.right_subtree = None
+
+        if self.max_depth == 0 or len(data) <= 1:
+            self.is_leaf = True
+            self.size = len(data)
+        else:
+            self.is_leaf = False
+            self.size = None
+            self.split()
+
+    def split(self):
+        num_samples, num_features = self.data.shape
+        self.split_attribute = np.random.randint(0, num_features)  # Randomly select an attribute to split on
+        min_val = np.min(self.data[:, self.split_attribute])
+        max_val = np.max(self.data[:, self.split_attribute])
+        self.split_value = np.random.uniform(min_val, max_val)  # Randomly select a split value
+        left_data = self.data[self.data[:, self.split_attribute] < self.split_value]
+        right_data = self.data[self.data[:, self.split_attribute] >= self.split_value]
+        self.left_subtree = IsolationTree(left_data, self.max_depth - 1)
+        self.right_subtree = IsolationTree(right_data, self.max_depth - 1)
+
+    def path_length(self, x, current_depth):
+        if self.is_leaf:
+            return current_depth
+        if x[self.split_attribute] < self.split_value:
+            return self.left_subtree.path_length(x, current_depth + 1)
+        else:
+            return self.right_subtree.path_length(x, current_depth + 1)
+
+
+class IsolationForest:
+    def __init__(self, num_trees=100, subsample_size=256, max_depth=10):
+        self.num_trees = num_trees
+        self.subsample_size = subsample_size
+        self.max_depth = max_depth
+        self.trees = []
+
+    def fit(self, X):
+        num_samples = X.shape[0]
+        subsample_size = min(self.subsample_size, num_samples)
+        
+        for _ in range(self.num_trees):
+            idx = np.random.choice(num_samples, subsample_size, replace=False)
+            subsample = X[idx]
+            tree = IsolationTree(subsample, self.max_depth)
+            self.trees.append(tree)
+
+    def anomaly_score(self, X):
+        scores = np.zeros(X.shape[0])
+        
+        for i in range(X.shape[0]):
+            path_lengths = [tree.path_length(X[i], 0) for tree in self.trees]
+            scores[i] = 2.0 ** (-np.mean(path_lengths) / (self.max_depth))
+        
+        return scores
+
+    def predict(self, X, threshold=0.5):
+        scores = self.anomaly_score(X)
+        return scores
+
+class SaWidget(tk.Frame):
+    def __init__(self, master=None, **kw):
+        super(SaWidget, self).__init__(master, **kw)
+        self.default_font_size = 12
+        
+        heading_label = tk.Label(self, text="Reduce Downtime from Advanced Analytics with Machine Learning", font=("Helvetica", 16, "bold"), pady=10)
+        heading_label.grid(row=0, column=0, columnspan=2, pady=10)
+
+        self.threshold_label = tk.Label(self, text="Threshold Value:", font=("Helvetica", self.default_font_size))
+        self.threshold_label.grid(row=1, column=0, sticky="e", padx=5, pady=5)
+        
+        self.threshold_entry = tk.Entry(self, font=("Helvetica", self.default_font_size))
+        self.threshold_entry.grid(row=1, column=1, sticky="w", padx=5, pady=5)
+        
+        # Button to import data
+        self.import_button = tk.Button(self, text="Import Data", command=self.import_data)
+        self.import_button.grid(row=2, column=0, columnspan=2, pady=10)
+        
+        self.menu = tk.Menu(master)
+        master.config(menu=self.menu)
+        
+        help_menu = tk.Menu(self.menu, tearoff=0)
+        self.menu.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="Help", command=self.show_help)
+        help_menu.add_command(label="Data Source", command=self.show_data_source)
+        help_menu.add_command(label="Text Resizer", command=self.text_resizer)
+
+        analysis_menu = tk.Menu(self.menu, tearoff=0)
+        self.menu.add_cascade(label="Data Analysis", menu=analysis_menu)
+        analysis_menu.add_command(label="Snack Rack Baking Machine", command=self.open_snack_analysis)
+        analysis_menu.add_command(label="Workshop Lathe Machine", command=self.open_lathe_analysis)
+
+        machine_menu = tk.Menu(self.menu, tearoff=0)
+        self.menu.add_cascade(label="Machines", menu=machine_menu)
+        machine_menu.add_command(label="Snack Rack", command=self.show_snack_info)
+        machine_menu.add_command(label="Workshop Machine Explanation", command=self.show_workshop_info)
+
+        self.configure(
+            background="#454754",
+            height=10000,
+            padx=100,
+            pady=100,
+            width=800)
+        self.grid(
+            column=0,
+            columnspan=500,
+            ipadx=100,
+            ipady=100,
+            padx=100,
+            pady=100,
+            row=0,
+            sticky="sew")
+
+    def show_help(self):
+        help_text = "This application allows you to analyze machine data using Isolation Forest algorithm.\n\nTo use:\n1. Enter a threshold value in the provided entry.\n2. Click on the desired analysis button to visualize the anomalies.\n\nAnomalies are highlighted in red in the generated graph."
+        messagebox.showinfo("Help", help_text)
+
+    def show_data_source(self):
+        data_source_text = "The data was collected from a snack rack bakery baking machine, and we have preprocessed the data using Excel."
+        messagebox.showinfo("Data Source", data_source_text)
+
+    def text_resizer(self):
+        text_resizer_window = tk.Toplevel(self.master)
+        text_resizer_window.title("Text Resizer")
+        
+        label = tk.Label(text_resizer_window, text="Adjust Text Size", font=("Helvetica", self.default_font_size, "bold"))
+        label.grid(row=0, column=0, columnspan=2, pady=10)
+        
+        increase_button = tk.Button(text_resizer_window, text="Increase", command=self.increase_font_size)
+        increase_button.grid(row=1, column=0, padx=5, pady=5)
+        
+        decrease_button = tk.Button(text_resizer_window, text="Decrease", command=self.decrease_font_size)
+        decrease_button.grid(row=1, column=1, padx=5, pady=5)
+
+    def increase_font_size(self):
+        self.default_font_size += 1
+        self.update_font_size()
+
+    def decrease_font_size(self):
+        if self.default_font_size > 8:
+            self.default_font_size -= 1
+            self.update_font_size()
+
+    def update_font_size(self):
+        self.threshold_label.config(font=("Helvetica", self.default_font_size))
+        self.threshold_entry.config(font=("Helvetica", self.default_font_size))
+
+        # Update button fonts
+        for widget in self.winfo_children():
+            if isinstance(widget, tk.Button):
+                widget.config(font=("Helvetica", self.default_font_size))
+
+    def show_snack_info(self):
+        info_text = "Snack Rack is a bakery . This bakery uses various machines to bake "
+        messagebox.showinfo("Snack Rack Information", info_text)
+
+        # Open image in a separate window
+        window = tk.Toplevel(self.master)
+        window.title("Snack Rack Image")
+
+        # Load and display the image
+        image_path = r'C:\Users\Sankhapani\Documents\WhatsApp Image 2024-03-14 at 13.54.04_236421fd.jpg'
+        image = Image.open(image_path)
+        photo = ImageTk.PhotoImage(image)
+        label = tk.Label(window, image=photo)
+        label.image = photo  # Keep reference to avoid garbage collection
+        label.pack()
+
+    def show_workshop_info(self):
+        info_text = "The workshop lathe machine is a versatile tool used in metalworking and woodworking applications. It is capable of rotating a workpiece about an axis of rotation to perform various operations such as cutting, drilling, facing, and turning. Lathe machines come in different sizes and configurations, ranging from small benchtop models to large industrial machines for heavy-duty tasks."
+        messagebox.showinfo("Workshop Lathe Machine Information", info_text)
+
+    def open_snack_analysis(self):
+        threshold = float(self.threshold_entry.get())
+        window = tk.Toplevel(self.master)
+        window.title("Snack Analysis")
+        self.plot_anomalies(window, 'snack', threshold)
+
+    def open_lathe_analysis(self):
+        threshold = float(self.threshold_entry.get())
+        window = tk.Toplevel(self.master)
+        window.title("Lathe Analysis")
+        self.plot_anomalies(window, 'lathe', threshold)
+
+    def plot_anomalies(self, window, machine_type, threshold):
+        # Load the dataset from CSV
+        data = pd.read_csv(r'C:\Users\Sankhapani\Downloads\final.csv')
+
+        # Convert datetime column to numerical timestamp
+        data['timestamp'] = pd.to_datetime(data['datetime'], dayfirst=True).astype('int64') // 10**9
+
+        # Select features for anomaly detection
+        X = data[['timestamp', 'Sound', 'Vibration']].values
+
+        # Instantiate and fit the Isolation Forest model
+        isolation_forest = IsolationForest()
+        isolation_forest.fit(X)
+
+        # Use the model to detect anomalies
+        anomaly_scores = isolation_forest.predict(X)
+
+        # Find the outliers
+        outliers_indices = np.where(anomaly_scores > threshold)
+        outliers = X[outliers_indices]
+
+        # Visualize the dataset and outliers
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # Plot dataset
+        ax.scatter(data['datetime'], data['Sound'], s=20, c='blue', label='Normal')
+
+        # Plot outliers
+        ax.scatter(data['datetime'].iloc[outliers_indices], data['Sound'].iloc[outliers_indices], s=50, c='red', label='Anomalies')
+
+        ax.set_title(f" {machine_type.capitalize()} Rack baking machine Anamoly detection ")
+        ax.set_xlabel('Datetime')
+        ax.set_ylabel('Sound')
+        ax.legend()
+
+        # Embed Matplotlib figure in Tkinter window
+        canvas = FigureCanvasTkAgg(fig, master=window)
+        canvas.draw()
+        canvas.get_tk_widget().pack()
+
+        # Destroy previous canvas (if any) before drawing new one
+        if hasattr(self, 'canvas'):
+            self.canvas.get_tk_widget().destroy()
+        self.canvas = canvas
+
+    def import_data(self):
+        # Open file dialog to select CSV file
+        file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])
+
+        if file_path:
+            # Load the dataset from CSV
+            data = pd.read_csv(file_path)
+
+            # Perform further processing or display the data as required
+            # For example, you can display the first few rows of the dataframe:
+            messagebox.showinfo("Data Imported", f"CSV file loaded successfully. First 5 rows:\n\n{data.head()}")
+
+            # You may want to update the Isolation Forest analysis with the new data
+            # For simplicity, let's assume the Isolation Forest analysis method is updated accordingly
+            # self.plot_anomalies(window, 'data', threshold)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    widget = SaWidget(root)
+    widget.pack(expand=True, fill="both")
+    root.mainloop()
